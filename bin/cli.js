@@ -10,25 +10,12 @@ import { fileURLToPath } from 'url';
 import localtunnel from 'localtunnel';
 import ngrok from '@ngrok/ngrok';
 import qrcode from 'qrcode-terminal';
-
-// ANSI color codes
-const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  dim: '\x1b[2m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  magenta: '\x1b[35m',
-  cyan: '\x1b[36m',
-  white: '\x1b[37m',
-  bgGreen: '\x1b[42m',
-  bgBlue: '\x1b[44m',
-  bgMagenta: '\x1b[45m',
-};
-
-const c = (color, text) => `${colors[color]}${text}${colors.reset}`;
+import chalk from 'chalk';
+import boxen from 'boxen';
+import ora from 'ora';
+import terminalSize from 'terminal-size';
+import gradient from 'gradient-string';
+import Table from 'cli-table3';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -115,14 +102,14 @@ async function waitForServer(port, maxAttempts = 30) {
 
 // Create a tunnel (ngrok or localtunnel)
 async function createTunnel(port, provider = 'ngrok', ngrokToken) {
-  console.log(c('cyan', '🔄 Creating tunnel...'));
+  const spinner = ora('Creating tunnel...').start();
 
   try {
     if (provider === 'ngrok') {
       if (!ngrokToken) {
-        console.log(c('yellow', '⚠️  ngrok requires an auth token'));
-        console.log(c('dim', '   Get one free at: https://ngrok.com'));
-        console.log(c('dim', '   Then use: claude-bridge start --tunnel --ngrok-token YOUR_TOKEN'));
+        spinner.warn('ngrok requires an auth token');
+        console.log(chalk.dim('   Get one free at: https://ngrok.com'));
+        console.log(chalk.dim('   Then use: claude-bridge start --tunnel --ngrok-token YOUR_TOKEN'));
         console.log('');
         return null;
       }
@@ -131,7 +118,7 @@ async function createTunnel(port, provider = 'ngrok', ngrokToken) {
         addr: port,
         authtoken: ngrokToken
       });
-      console.log(c('green', '✅ Tunnel created with ngrok'));
+      spinner.succeed('Tunnel created with ngrok');
       return {
         url: listener.url(),
         provider: 'ngrok',
@@ -139,8 +126,8 @@ async function createTunnel(port, provider = 'ngrok', ngrokToken) {
       };
     } else if (provider === 'localtunnel') {
       const tunnel = await localtunnel({ port });
-      console.log(c('green', '✅ Tunnel created with localtunnel'));
-      console.log(c('yellow', '⚠️  Note: localtunnel can be unreliable. Consider using ngrok.'));
+      spinner.succeed('Tunnel created with localtunnel');
+      console.log(chalk.yellow('   ⚠️  Note: localtunnel can be unreliable. Consider using ngrok.'));
 
       // Handle tunnel errors silently - localtunnel often has connection issues
       tunnel.on('error', () => {
@@ -153,12 +140,12 @@ async function createTunnel(port, provider = 'ngrok', ngrokToken) {
         close: () => tunnel.close()
       };
     } else {
-      console.log(c('red', `❌ Unknown tunnel provider: ${provider}`));
+      spinner.fail(`Unknown tunnel provider: ${provider}`);
       return null;
     }
   } catch (error) {
-    console.error(c('red', '❌ Failed to create tunnel:'), error.message);
-    console.log(c('yellow', '💡 Falling back to local network only'));
+    spinner.fail(`Failed to create tunnel: ${error.message}`);
+    console.log(chalk.yellow('💡 Falling back to local network only'));
     console.log('');
     return null;
   }
@@ -167,31 +154,48 @@ async function createTunnel(port, provider = 'ngrok', ngrokToken) {
 // Display QR code with connection URL
 function displayQRCode(url, wsUrl, authToken, showQR = true) {
   console.log('');
-  console.log(c('bright', c('green', '╔════════════════════════════════════════════════════════════╗')));
-  console.log(c('bright', c('green', '║') + c('cyan', '      🚀 Claude Mobile Bridge - Ready to Connect! 🚀       ') + c('green', '║')));
-  console.log(c('bright', c('green', '╚════════════════════════════════════════════════════════════╝')));
+
+  // Check terminal size
+  const { rows } = terminalSize();
+  const hasSpaceForQR = rows >= 30; // Need at least 30 lines for QR + info
+
+  // Header
+  const header = gradient.pastel.multiline('🚀 Claude Mobile Bridge\n   Ready to Connect!');
+  console.log(boxen(header, {
+    padding: 1,
+    margin: { top: 0, bottom: 1, left: 0, right: 0 },
+    borderStyle: 'round',
+    borderColor: 'cyan',
+    textAlignment: 'center'
+  }));
+
+  // Connection info table
+  const table = new Table({
+    style: {
+      head: ['cyan'],
+      border: ['gray']
+    },
+    colWidths: [20, 50]
+  });
+
+  table.push(
+    [chalk.bold('📱 Mobile URL'), chalk.cyan(url)],
+    [chalk.bold('🔌 WebSocket'), chalk.magenta(wsUrl)],
+    [chalk.bold('🔐 Auth Token'), authToken === 'None' ? chalk.yellow(authToken) : chalk.green(authToken.slice(0, 32) + '...')]
+  );
+
+  console.log(table.toString());
   console.log('');
 
-  console.log(c('bright', '📱 Mobile Connection:'));
-  console.log(c('cyan', `   ${url}`));
-  console.log('');
-
-  if (showQR) {
-    console.log(c('yellow', '📷 Scan this QR code with your mobile browser:'));
+  // QR code (only if terminal is tall enough and showQR is true)
+  if (showQR && hasSpaceForQR) {
+    console.log(chalk.bold('📷 Scan QR code with your mobile browser:'));
     console.log('');
     qrcode.generate(url, { small: true });
-    console.log('');
+  } else if (showQR && !hasSpaceForQR) {
+    console.log(chalk.dim('💡 QR code hidden (terminal too small). Resize or scroll up to see it.'));
   }
 
-  console.log(c('dim', '────────────────────────────────────────────────────────────'));
-  console.log('');
-  console.log(c('bright', '🔌 WebSocket URL:'));
-  console.log(c('magenta', `   ${wsUrl}`));
-  console.log('');
-  console.log(c('bright', '🔐 Auth Token:'));
-  console.log(c('yellow', `   ${authToken}`));
-  console.log('');
-  console.log(c('dim', '────────────────────────────────────────────────────────────'));
   console.log('');
 }
 
@@ -230,10 +234,11 @@ program
     }
 
     const port = parseInt(options.port);
+
+    // Startup banner
     console.log('');
-    console.log(c('bright', c('magenta', '╔════════════════════════════════════════════════════════════╗')));
-    console.log(c('bright', c('magenta', '║') + c('white', '         🚀 Starting Claude Mobile Bridge 🚀             ') + c('magenta', '║')));
-    console.log(c('bright', c('magenta', '╚════════════════════════════════════════════════════════════╝')));
+    const banner = gradient.cristal.multiline('╔══════════════════════════════════════╗\n║   🚀 Claude Mobile Bridge 🚀      ║\n╚══════════════════════════════════════╝');
+    console.log(banner);
     console.log('');
 
     // Set environment variables
@@ -262,7 +267,7 @@ program
       command = 'npx';
       args = ['tsx', serverSrcPath];
     } else {
-      console.error(c('red', '❌ Error: Server not found. Please run "npm run build" first.'));
+      console.error(chalk.red('❌ Error: Server not found. Please run "npm run build" first.'));
       process.exit(1);
     }
 
@@ -278,21 +283,21 @@ program
     child.stderr.on('data', (data) => process.stderr.write(data));
 
     child.on('error', (err) => {
-      console.error(c('red', '❌ Failed to start server:'), err.message);
+      console.error(chalk.red('❌ Failed to start server:'), err.message);
       process.exit(1);
     });
 
-    // Wait for server to be ready
-    console.log(c('cyan', '⏳ Waiting for server to start...'));
+    // Wait for server to be ready with spinner
+    const spinner = ora('Starting server...').start();
     const serverReady = await waitForServer(port);
 
     if (!serverReady) {
-      console.error(c('red', '❌ Server failed to start within 30 seconds'));
+      spinner.fail('Server failed to start within 30 seconds');
       child.kill();
       process.exit(1);
     }
 
-    console.log(c('green', '✅ Server started successfully'));
+    spinner.succeed('Server started successfully');
     console.log('');
 
     // Create tunnel if enabled
@@ -315,23 +320,28 @@ program
         displayQRCode(mobileUrl, wsUrl, authToken || 'None', true);
       }
 
-      console.log(c('bright', '📋 Local Network Connection:'));
-      console.log('');
-      console.log(c('green', '   Primary IP:'));
-      console.log(c('cyan', `   http://${primaryIP}:${port}`));
-      console.log('');
+      // Network info box
+      let networkInfo = chalk.bold.cyan('Local Network Connection\n\n');
+      networkInfo += chalk.green('Primary IP:\n');
+      networkInfo += chalk.cyan.bold(`http://${primaryIP}:${port}\n`);
 
       if (localIPs.length > 1) {
-        console.log(c('dim', '   Other available IPs:'));
+        networkInfo += chalk.dim('\nOther IPs:\n');
         localIPs.slice(1).forEach(ip => {
-          console.log(c('dim', `   • http://${ip}:${port}`));
+          networkInfo += chalk.dim(`• http://${ip}:${port}\n`);
         });
-        console.log('');
       }
 
-      console.log(c('yellow', '   💡 To access from internet, use:'));
-      console.log(c('dim', '      claude-bridge start --tunnel --ngrok-token YOUR_TOKEN'));
-      console.log(c('dim', '      Get free ngrok token at: https://ngrok.com'));
+      networkInfo += chalk.yellow('\n💡 Enable Internet Access:\n');
+      networkInfo += chalk.dim('claude-bridge start --tunnel --ngrok-token TOKEN\n');
+      networkInfo += chalk.dim('Get token: https://ngrok.com');
+
+      console.log(boxen(networkInfo, {
+        padding: 1,
+        margin: { top: 0, bottom: 1, left: 0, right: 0 },
+        borderStyle: 'round',
+        borderColor: 'green'
+      }));
     } else {
       // Tunnel available
       const mobileUrl = tunnel.url;
@@ -341,36 +351,41 @@ program
         displayQRCode(mobileUrl, wsUrl, authToken || 'None', true);
       }
 
-      console.log(c('bright', '📋 Connection Info:'));
-      console.log('');
-      console.log(c('green', `   ✓ Internet Access: ${tunnel.provider}`));
-      console.log(c('cyan', `   ✓ Public URL: ${tunnel.url}`));
-      console.log('');
-      console.log(c('dim', `   Local fallback: http://${primaryIP}:${port}`));
+      let tunnelInfo = chalk.bold.green(`✓ Internet Access (${tunnel.provider})\n\n`);
+      tunnelInfo += chalk.cyan.bold(`${tunnel.url}\n\n`);
+      tunnelInfo += chalk.dim(`Local fallback: http://${primaryIP}:${port}`);
+
+      console.log(boxen(tunnelInfo, {
+        padding: 1,
+        margin: { top: 0, bottom: 1, left: 0, right: 0 },
+        borderStyle: 'round',
+        borderColor: 'cyan'
+      }));
     }
 
+    // Project and controls
+    console.log(chalk.bold('📂 Project: ') + chalk.cyan(options.project));
     console.log('');
-    console.log(c('bright', '📂 Project:'), c('cyan', options.project));
-    console.log('');
-    console.log(c('dim', '────────────────────────────────────────────────────────────'));
-    console.log('');
-    console.log(c('yellow', '⌨️  Press Ctrl+C to stop server'));
+    console.log(chalk.yellow('⌨️  Press ') + chalk.bold('Ctrl+C') + chalk.yellow(' to stop server'));
     console.log('');
 
     // Handle cleanup on exit
     const cleanup = () => {
       console.log('');
       console.log('');
-      console.log(c('yellow', '🛑 Shutting down...'));
+      const shutdownSpinner = ora('Shutting down...').start();
+
       if (tunnel) {
-        console.log(c('cyan', '   Closing tunnel...'));
+        shutdownSpinner.text = 'Closing tunnel...';
         tunnel.close();
       }
-      console.log(c('cyan', '   Stopping server...'));
+
+      shutdownSpinner.text = 'Stopping server...';
       child.kill('SIGTERM');
+
       setTimeout(() => {
         child.kill('SIGKILL');
-        console.log(c('green', '✅ Goodbye!'));
+        shutdownSpinner.succeed('Goodbye! 👋');
         process.exit(0);
       }, 3000);
     };

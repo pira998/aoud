@@ -201,7 +201,9 @@ function getSessionInfo(): SessionInfo[] {
 
 // Handle WebSocket connections
 wss.on('connection', (ws: WebSocket) => {
-  console.log('Client connected');
+  if (!SILENT_MODE) {
+    console.log('Client connected');
+  }
   clients.add(ws);
 
   // Send connection status
@@ -239,7 +241,9 @@ wss.on('connection', (ws: WebSocket) => {
   });
 
   ws.on('close', () => {
-    console.log('Client disconnected');
+    if (!SILENT_MODE) {
+      console.log('Client disconnected');
+    }
     clients.delete(ws);
   });
 
