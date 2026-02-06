@@ -60,6 +60,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.21.0",
+    "figlet": "^1.10.0",
     "gradient-string": "^3.0.0",
     "localtunnel": "^2.0.2",
     "ora": "^9.3.0",

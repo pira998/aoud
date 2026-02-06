@@ -16,6 +16,7 @@ import ora from 'ora';
 import terminalSize from 'terminal-size';
 import gradient from 'gradient-string';
 import Table from 'cli-table3';
+import figlet from 'figlet';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -157,14 +158,20 @@ function displayQRCode(url, wsUrl, authToken, showQR = true) {
 
   // Check terminal size
   const { rows } = terminalSize();
-  const hasSpaceForQR = rows >= 30; // Need at least 30 lines for QR + info
+  const hasSpaceForQR = rows >= 35; // Need at least 35 lines for FIGlet + QR + info
 
-  // Header
-  const header = gradient.pastel.multiline('🚀 Claude Mobile Bridge\n   Ready to Connect!');
+  // Header with FIGlet
+  const readyText = figlet.textSync('Ready!', {
+    font: 'Big',
+    horizontalLayout: 'fitted',
+    verticalLayout: 'default'
+  });
+  const header = gradient.rainbow.multiline(readyText) + '\n' + chalk.cyan.bold('    Connect your mobile device');
+
   console.log(boxen(header, {
     padding: 1,
     margin: { top: 0, bottom: 1, left: 0, right: 0 },
-    borderStyle: 'round',
+    borderStyle: 'double',
     borderColor: 'cyan',
     textAlignment: 'center'
   }));
@@ -235,10 +242,17 @@ program
 
     const port = parseInt(options.port);
 
-    // Startup banner
+    // Startup banner with FIGlet
     console.log('');
-    const banner = gradient.cristal.multiline('╔══════════════════════════════════════╗\n║   🚀 Claude Mobile Bridge 🚀      ║\n╚══════════════════════════════════════╝');
-    console.log(banner);
+    const figletText = figlet.textSync('Claude Bridge', {
+      font: 'ANSI Shadow',
+      horizontalLayout: 'default',
+      verticalLayout: 'default',
+      width: 80,
+      whitespaceBreak: true
+    });
+    console.log(gradient.pastel.multiline(figletText));
+    console.log(chalk.cyan.bold('        Mobile Control for Claude Code\n'));
     console.log('');
 
     // Set environment variables
