@@ -11,6 +11,25 @@ import localtunnel from 'localtunnel';
 import ngrok from '@ngrok/ngrok';
 import qrcode from 'qrcode-terminal';
 
+// ANSI color codes
+const colors = {
+  reset: '\x1b[0m',
+  bright: '\x1b[1m',
+  dim: '\x1b[2m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m',
+  white: '\x1b[37m',
+  bgGreen: '\x1b[42m',
+  bgBlue: '\x1b[44m',
+  bgMagenta: '\x1b[45m',
+};
+
+const c = (color, text) => `${colors[color]}${text}${colors.reset}`;
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -94,61 +113,86 @@ async function waitForServer(port, maxAttempts = 30) {
   return false;
 }
 
-// Create a tunnel (localtunnel or ngrok)
-async function createTunnel(port, provider = 'localtunnel', ngrokToken) {
-  console.log('🔄 Creating tunnel...');
+// Create a tunnel (ngrok or localtunnel)
+async function createTunnel(port, provider = 'ngrok', ngrokToken) {
+  console.log(c('cyan', '🔄 Creating tunnel...'));
 
   try {
-    if (provider === 'ngrok' && ngrokToken) {
+    if (provider === 'ngrok') {
+      if (!ngrokToken) {
+        console.log(c('yellow', '⚠️  ngrok requires an auth token'));
+        console.log(c('dim', '   Get one free at: https://ngrok.com'));
+        console.log(c('dim', '   Then use: claude-bridge start --tunnel --ngrok-token YOUR_TOKEN'));
+        console.log('');
+        return null;
+      }
+
       const listener = await ngrok.forward({
         addr: port,
         authtoken: ngrokToken
       });
-      console.log('✅ Tunnel created with ngrok');
+      console.log(c('green', '✅ Tunnel created with ngrok'));
       return {
         url: listener.url(),
         provider: 'ngrok',
         close: () => listener.close()
       };
-    } else {
+    } else if (provider === 'localtunnel') {
       const tunnel = await localtunnel({ port });
-      console.log('✅ Tunnel created with localtunnel');
+      console.log(c('green', '✅ Tunnel created with localtunnel'));
+      console.log(c('yellow', '⚠️  Note: localtunnel can be unreliable. Consider using ngrok.'));
+
+      // Handle tunnel errors silently - localtunnel often has connection issues
+      tunnel.on('error', () => {
+        // Suppress repeated error messages
+      });
+
       return {
         url: tunnel.url,
         provider: 'localtunnel',
         close: () => tunnel.close()
       };
+    } else {
+      console.log(c('red', `❌ Unknown tunnel provider: ${provider}`));
+      return null;
     }
   } catch (error) {
-    console.error('❌ Failed to create tunnel:', error.message);
-    console.log('💡 Falling back to local network only\n');
+    console.error(c('red', '❌ Failed to create tunnel:'), error.message);
+    console.log(c('yellow', '💡 Falling back to local network only'));
+    console.log('');
     return null;
   }
 }
 
 // Display QR code with connection URL
-function displayQRCode(url, showQR = true) {
-  const separator = '═'.repeat(62);
-  console.log(`\n╔${separator}╗`);
-  console.log('║         Claude Mobile Bridge - Ready to Connect          ║');
-  console.log(`╠${separator}╣`);
-  console.log('║                                                          ║');
-  const urlPadded = url.padEnd(40).slice(0, 40);
-  console.log(`║  🌐 Public URL:  ${urlPadded}           ║`);
-  console.log('║                                                          ║');
+function displayQRCode(url, wsUrl, authToken, showQR = true) {
+  console.log('');
+  console.log(c('bright', c('green', '╔════════════════════════════════════════════════════════════╗')));
+  console.log(c('bright', c('green', '║') + c('cyan', '      🚀 Claude Mobile Bridge - Ready to Connect! 🚀       ') + c('green', '║')));
+  console.log(c('bright', c('green', '╚════════════════════════════════════════════════════════════╝')));
+  console.log('');
+
+  console.log(c('bright', '📱 Mobile Connection:'));
+  console.log(c('cyan', `   ${url}`));
+  console.log('');
 
   if (showQR) {
-    console.log('║  📱 Scan QR Code:                                        ║');
-    console.log(`╚${separator}╝\n`);
-
+    console.log(c('yellow', '📷 Scan this QR code with your mobile browser:'));
+    console.log('');
     qrcode.generate(url, { small: true });
-
-    console.log('\n✅ Server ready! Scan the QR code with your mobile device');
-  } else {
-    console.log(`╚${separator}╝`);
+    console.log('');
   }
 
-  console.log('\n💡 Connection URL saved. Mobile app will auto-connect.\n');
+  console.log(c('dim', '────────────────────────────────────────────────────────────'));
+  console.log('');
+  console.log(c('bright', '🔌 WebSocket URL:'));
+  console.log(c('magenta', `   ${wsUrl}`));
+  console.log('');
+  console.log(c('bright', '🔐 Auth Token:'));
+  console.log(c('yellow', `   ${authToken}`));
+  console.log('');
+  console.log(c('dim', '────────────────────────────────────────────────────────────'));
+  console.log('');
 }
 
 program
@@ -164,10 +208,9 @@ program
   .option('--auth <token>', 'Authentication token (auto-generated if not provided)')
   .option('--no-auth', 'Disable authentication')
   .option('--tls', 'Enable TLS/HTTPS (experimental)')
-  .option('--tunnel', 'Enable automatic tunneling (default: true)', true)
-  .option('--no-tunnel', 'Disable automatic tunneling')
-  .option('--tunnel-provider <provider>', 'Tunnel provider: localtunnel or ngrok', 'localtunnel')
-  .option('--ngrok-token <token>', 'ngrok authtoken (optional)')
+  .option('--tunnel', 'Enable automatic tunneling (local network only by default)')
+  .option('--tunnel-provider <provider>', 'Tunnel provider: ngrok or localtunnel', 'ngrok')
+  .option('--ngrok-token <token>', 'ngrok authtoken (required for ngrok)')
   .option('--no-qr', 'Disable QR code display')
   .action(async (options) => {
     const config = loadConfig();
@@ -187,12 +230,17 @@ program
     }
 
     const port = parseInt(options.port);
-    console.log('🚀 Starting Claude Mobile Bridge...\n');
+    console.log('');
+    console.log(c('bright', c('magenta', '╔════════════════════════════════════════════════════════════╗')));
+    console.log(c('bright', c('magenta', '║') + c('white', '         🚀 Starting Claude Mobile Bridge 🚀             ') + c('magenta', '║')));
+    console.log(c('bright', c('magenta', '╚════════════════════════════════════════════════════════════╝')));
+    console.log('');
 
     // Set environment variables
     const env = {
       ...process.env,
       PORT: port,
+      BRIDGE_SILENT: 'true', // Suppress server's own startup messages
     };
 
     if (authToken) {
@@ -214,7 +262,7 @@ program
       command = 'npx';
       args = ['tsx', serverSrcPath];
     } else {
-      console.error('Error: Server not found. Please run "npm run build" first.');
+      console.error(c('red', '❌ Error: Server not found. Please run "npm run build" first.'));
       process.exit(1);
     }
 
@@ -230,21 +278,22 @@ program
     child.stderr.on('data', (data) => process.stderr.write(data));
 
     child.on('error', (err) => {
-      console.error('Failed to start server:', err.message);
+      console.error(c('red', '❌ Failed to start server:'), err.message);
       process.exit(1);
     });
 
     // Wait for server to be ready
-    console.log('⏳ Waiting for server to start...');
+    console.log(c('cyan', '⏳ Waiting for server to start...'));
     const serverReady = await waitForServer(port);
 
     if (!serverReady) {
-      console.error('❌ Server failed to start within 30 seconds');
+      console.error(c('red', '❌ Server failed to start within 30 seconds'));
       child.kill();
       process.exit(1);
     }
 
-    console.log('✅ Server started successfully\n');
+    console.log(c('green', '✅ Server started successfully'));
+    console.log('');
 
     // Create tunnel if enabled
     let tunnel = null;
@@ -255,46 +304,73 @@ program
     // Get connection URL
     const localIPs = getLocalIPs();
     const primaryIP = localIPs[0] || 'localhost';
-    const connectionUrl = tunnel ? tunnel.url : `http://${primaryIP}:${port}`;
 
-    // Convert to WebSocket URL
-    const wsUrl = connectionUrl.replace('https://', 'wss://').replace('http://', 'ws://');
+    // Always show local network info prominently
+    if (!tunnel) {
+      // Local network only
+      const mobileUrl = `http://${primaryIP}:${port}`;
+      const wsUrl = `ws://${primaryIP}:${port}`;
 
-    // Generate QR code with special connect URL
-    const qrUrl = `${connectionUrl}?connect=${encodeURIComponent(wsUrl)}`;
-
-    if (!options.noQr) {
-      displayQRCode(qrUrl, true);
-    } else {
-      console.log(`\n✅ Server running at: ${connectionUrl}`);
-      console.log(`   WebSocket URL: ${wsUrl}\n`);
-    }
-
-    if (tunnel) {
-      console.log(`✨ Tunnel provider: ${tunnel.provider}`);
-      if (tunnel.provider === 'localtunnel') {
-        console.log('💡 For faster connection, use: --tunnel-provider ngrok --ngrok-token YOUR_TOKEN\n');
+      if (!options.noQr) {
+        displayQRCode(mobileUrl, wsUrl, authToken || 'None', true);
       }
+
+      console.log(c('bright', '📋 Local Network Connection:'));
+      console.log('');
+      console.log(c('green', '   Primary IP:'));
+      console.log(c('cyan', `   http://${primaryIP}:${port}`));
+      console.log('');
+
+      if (localIPs.length > 1) {
+        console.log(c('dim', '   Other available IPs:'));
+        localIPs.slice(1).forEach(ip => {
+          console.log(c('dim', `   • http://${ip}:${port}`));
+        });
+        console.log('');
+      }
+
+      console.log(c('yellow', '   💡 To access from internet, use:'));
+      console.log(c('dim', '      claude-bridge start --tunnel --ngrok-token YOUR_TOKEN'));
+      console.log(c('dim', '      Get free ngrok token at: https://ngrok.com'));
     } else {
-      console.log(`📍 Local network only (use --tunnel to enable internet access)\n`);
+      // Tunnel available
+      const mobileUrl = tunnel.url;
+      const wsUrl = tunnel.url.replace('https://', 'wss://').replace('http://', 'ws://');
+
+      if (!options.noQr) {
+        displayQRCode(mobileUrl, wsUrl, authToken || 'None', true);
+      }
+
+      console.log(c('bright', '📋 Connection Info:'));
+      console.log('');
+      console.log(c('green', `   ✓ Internet Access: ${tunnel.provider}`));
+      console.log(c('cyan', `   ✓ Public URL: ${tunnel.url}`));
+      console.log('');
+      console.log(c('dim', `   Local fallback: http://${primaryIP}:${port}`));
     }
 
-    console.log(`📂 Project: ${options.project}`);
-    if (authToken) {
-      console.log(`🔑 Auth Token: ${authToken.slice(0, 20)}...`);
-    }
-    console.log('\nPress Ctrl+C to stop server\n');
+    console.log('');
+    console.log(c('bright', '📂 Project:'), c('cyan', options.project));
+    console.log('');
+    console.log(c('dim', '────────────────────────────────────────────────────────────'));
+    console.log('');
+    console.log(c('yellow', '⌨️  Press Ctrl+C to stop server'));
+    console.log('');
 
     // Handle cleanup on exit
     const cleanup = () => {
-      console.log('\n\n🛑 Shutting down...');
+      console.log('');
+      console.log('');
+      console.log(c('yellow', '🛑 Shutting down...'));
       if (tunnel) {
-        console.log('Closing tunnel...');
+        console.log(c('cyan', '   Closing tunnel...'));
         tunnel.close();
       }
+      console.log(c('cyan', '   Stopping server...'));
       child.kill('SIGTERM');
       setTimeout(() => {
         child.kill('SIGKILL');
+        console.log(c('green', '✅ Goodbye!'));
         process.exit(0);
       }, 3000);
     };

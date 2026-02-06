@@ -23,15 +23,18 @@ const __dirname = path.dirname(__filename);
 
 // Configuration
 const PORT = parseInt(process.env.PORT || '3001');
+const SILENT_MODE = process.env.BRIDGE_SILENT === 'true';
 
 // Auto-generate auth token if not provided (required by default)
 let AUTH_TOKEN = process.env.BRIDGE_AUTH_TOKEN;
 if (!AUTH_TOKEN) {
   AUTH_TOKEN = crypto.randomBytes(32).toString('hex');
-  console.log('\n🔐 Authentication token was not found. Generated new secure token:');
-  console.log(`   ${AUTH_TOKEN}`);
-  console.log('\n💡 To persist this token, add it to your .env file:');
-  console.log(`   BRIDGE_AUTH_TOKEN=${AUTH_TOKEN}\n`);
+  if (!SILENT_MODE) {
+    console.log('\n🔐 Authentication token was not found. Generated new secure token:');
+    console.log(`   ${AUTH_TOKEN}`);
+    console.log('\n💡 To persist this token, add it to your .env file:');
+    console.log(`   BRIDGE_AUTH_TOKEN=${AUTH_TOKEN}\n`);
+  }
 }
 
 // Active sessions map
@@ -136,7 +139,9 @@ for (const p of possibleMobilePaths) {
 }
 
 if (mobileDistPath) {
-  console.log(`Serving mobile PWA from: ${mobileDistPath}`);
+  if (!SILENT_MODE) {
+    console.log(`Serving mobile PWA from: ${mobileDistPath}`);
+  }
   // Serve static files
   app.use(express.static(mobileDistPath));
   // SPA fallback - serve index.html for all non-API routes
@@ -150,8 +155,10 @@ if (mobileDistPath) {
     res.sendFile(path.join(mobileDistPath!, 'index.html'));
   });
 } else {
-  console.log('Mobile PWA not found. Run "npm run build:mobile" to build it.');
-  console.log('You can still use the mobile dev server: cd mobile && npm run dev');
+  if (!SILENT_MODE) {
+    console.log('Mobile PWA not found. Run "npm run build:mobile" to build it.');
+    console.log('You can still use the mobile dev server: cd mobile && npm run dev');
+  }
 }
 
 // Create HTTP server
@@ -698,11 +705,12 @@ function handleInterrupt(sessionId: string): void {
 
 // Start server
 server.listen(PORT, '0.0.0.0', () => {
-  const authTokenDisplay = AUTH_TOKEN.length > 40
-    ? AUTH_TOKEN.substring(0, 40) + '...'
-    : AUTH_TOKEN;
+  if (!SILENT_MODE) {
+    const authTokenDisplay = AUTH_TOKEN.length > 40
+      ? AUTH_TOKEN.substring(0, 40) + '...'
+      : AUTH_TOKEN;
 
-  console.log(`
+    console.log(`
 ╔════════════════════════════════════════════════════════════╗
 ║         Claude Code Mobile Bridge Server                   ║
 ╠════════════════════════════════════════════════════════════╣
@@ -721,6 +729,7 @@ server.listen(PORT, '0.0.0.0', () => {
 ║                                                            ║
 ╚════════════════════════════════════════════════════════════╝
 `);
+  }
 });
 
 // Graceful shutdown
