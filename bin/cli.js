@@ -227,10 +227,14 @@ program
     const config = loadConfig();
 
     // Handle auth token
-    let authToken = options.auth;
-    if (options.auth === true) {
-      // --no-auth was not passed, use or generate token
-      if (!authToken) {
+    let authToken;
+    if (options.auth !== false) {
+      // Auth is enabled (default) or a specific token was provided
+      if (typeof options.auth === 'string') {
+        // User provided a specific token via --auth TOKEN
+        authToken = options.auth;
+      } else {
+        // Use saved token or generate a new one
         authToken = config.authToken;
         if (!authToken) {
           authToken = generateAuthToken();
@@ -239,6 +243,7 @@ program
         }
       }
     }
+    // If options.auth === false (--no-auth was passed), authToken stays undefined
 
     const port = parseInt(options.port);
 
@@ -330,8 +335,11 @@ program
       const mobileUrl = `http://${primaryIP}:${port}`;
       const wsUrl = `ws://${primaryIP}:${port}`;
 
+      // Generate QR code URL with connect parameter and auth token
+      const qrUrl = `${mobileUrl}?connect=${encodeURIComponent(wsUrl)}&token=${encodeURIComponent(authToken || '')}`;
+
       if (!options.noQr) {
-        displayQRCode(mobileUrl, wsUrl, authToken || 'None', true);
+        displayQRCode(qrUrl, wsUrl, authToken || 'None', true);
       }
 
       // Network info box
@@ -361,8 +369,11 @@ program
       const mobileUrl = tunnel.url;
       const wsUrl = tunnel.url.replace('https://', 'wss://').replace('http://', 'ws://');
 
+      // Generate QR code URL with connect parameter and auth token
+      const qrUrl = `${mobileUrl}?connect=${encodeURIComponent(wsUrl)}&token=${encodeURIComponent(authToken || '')}`;
+
       if (!options.noQr) {
-        displayQRCode(mobileUrl, wsUrl, authToken || 'None', true);
+        displayQRCode(qrUrl, wsUrl, authToken || 'None', true);
       }
 
       let tunnelInfo = chalk.bold.green(`✓ Internet Access (${tunnel.provider})\n\n`);

@@ -35,8 +35,10 @@ export type { ServerMessage, SessionInfo, ProjectInfo, PermissionMode, DiffMessa
 // Sequence counter (outside component to persist across renders)
 let sequenceCounter = 0;
 
-export function useWebSocket(serverUrl: string) {
+export function useWebSocket(serverUrl: string, authToken: string | null = null) {
   const [isConnected, setIsConnected] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [rawMessages, setRawMessages] = useState<ServerMessage[]>([]);
@@ -73,6 +75,18 @@ export function useWebSocket(serverUrl: string) {
         setIsConnected(true);
         setConnectionError(null);
         console.log('WebSocket connected');
+
+        // Send authentication message
+        if (authToken) {
+          console.log('[Auth] Sending connect message with token');
+          ws.send(JSON.stringify({
+            type: 'connect',
+            authToken: authToken,
+          }));
+        } else {
+          console.warn('[Auth] No authentication token available');
+          setAuthError('No authentication token. Please scan QR code again.');
+        }
       };
 
       ws.onclose = () => {
@@ -120,7 +134,15 @@ export function useWebSocket(serverUrl: string) {
     switch (message.type) {
       case 'connection_status':
         if (message.status === 'error') {
-          setConnectionError(message.message || 'Connection error');
+          const errorMessage = message.message || 'Connection error';
+          setConnectionError(errorMessage);
+          setAuthError(errorMessage);
+          setIsAuthenticated(false);
+          console.error('[Auth] Connection error:', message.message);
+        } else if (message.status === 'authenticated') {
+          setIsAuthenticated(true);
+          setAuthError(null);
+          console.log('[Auth] Successfully authenticated');
         }
         break;
 
@@ -562,6 +584,8 @@ export function useWebSocket(serverUrl: string) {
   return {
     // Connection state
     isConnected,
+    isAuthenticated,
+    authError,
     connectionError,
     // Chat state
     messages,
