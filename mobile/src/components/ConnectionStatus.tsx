@@ -1,4 +1,3 @@
-import React from 'react';
 import { Wifi, WifiOff, AlertCircle } from 'lucide-react';
 
 interface ConnectionStatusProps {

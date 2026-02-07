@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useWebSocket } from './hooks/useWebSocket';
+import { useMultiInstanceWebSocket } from './hooks/useMultiInstanceWebSocket';
 import { ConnectionStatus } from './components/ConnectionStatus';
 import { SessionList } from './components/SessionList';
 import { UnifiedTerminalView } from './components/UnifiedTerminalView';
 import { AuthErrorModal } from './components/AuthErrorModal';
-import { Settings, Code2, Home, Terminal } from 'lucide-react';
+import { Settings, Code2, Home, Terminal, Plus, RefreshCw } from 'lucide-react';
+import { cn } from './lib/utils';
 
 // Extract connection info from URL or localStorage
 const getConnectionInfo = (): { url: string; token: string | null } => {
@@ -62,27 +64,101 @@ function App() {
   // Extract connection info on mount
   const connectionInfo = getConnectionInfo();
   const [serverUrl, setServerUrl] = useState(connectionInfo.url);
-  const [authToken, setAuthToken] = useState(connectionInfo.token || '');
+  const [authToken] = useState(connectionInfo.token || '');
   const [showSettings, setShowSettings] = useState(false);
   const [currentView, setCurrentView] = useState<'terminal' | 'sessions'>('terminal');
   const [customUrl, setCustomUrl] = useState(serverUrl);
   const [customToken, setCustomToken] = useState(authToken);
+  const [useMultiInstance, setUseMultiInstance] = useState(false);
 
+  // Determine if this is a direct QR code connection vs multi-instance discovery
+  // QR connections have both serverUrl and authToken, and typically aren't localhost
+  const isDirectQRConnection = serverUrl && authToken && !serverUrl.includes('localhost');
+
+  // Enable only the appropriate hook to prevent dual connections (4x message bug)
+  const multiInstance = useMultiInstanceWebSocket(!isDirectQRConnection);
+  const {
+    instances,
+    activeInstanceId,
+    setActiveInstanceId: setActiveInstance,
+    sendToInstance,
+    getTimeline: getInstanceTimeline,
+    getConnectionStatus,
+    getConnection,
+    addToTimeline,
+    refreshInstances,
+  } = multiInstance;
+
+  // Fallback to single-instance mode (enabled only for direct QR connections)
+  const singleInstance = useWebSocket(serverUrl, authToken, isDirectQRConnection);
   const {
     isConnected,
     isAuthenticated,
     authError,
     connectionError,
-    timeline,
+    timeline: singleTimeline,
     sessions,
     activeSessionId,
     isProcessing,
     tasks,
-    sendPrompt,
-    handleApproval,
-    setActiveSessionId,
+    sendPrompt: sendSinglePrompt,
+    handleApproval: handleSingleApproval,
+    setActiveSessionId: setSingleActiveSessionId,
     clearTerminal,
-  } = useWebSocket(serverUrl, authToken);
+  } = singleInstance;
+
+  // Determine which mode to use based on available instances
+  const hasMultipleInstances = instances.length > 1;
+  const shouldUseMultiInstance = instances.length > 0 || useMultiInstance;
+
+  // Get active instance data
+  const activeInstance = instances.find(i => i.instanceId === activeInstanceId);
+  const instanceStatus = activeInstanceId ? getConnectionStatus(activeInstanceId) : { isConnected: false, isAuthenticated: false };
+  const instanceTimeline = activeInstanceId ? getInstanceTimeline(activeInstanceId) : [];
+
+  // Unified interface - works with both modes
+  const currentIsConnected = shouldUseMultiInstance ? instanceStatus.isConnected : isConnected;
+  const currentIsAuthenticated = shouldUseMultiInstance ? instanceStatus.isAuthenticated : isAuthenticated;
+  const currentTimeline = shouldUseMultiInstance ? instanceTimeline : singleTimeline;
+
+  const sendPrompt = (text: string) => {
+    if (shouldUseMultiInstance && activeInstanceId) {
+      // Create user message
+      const userMessage = {
+        id: crypto.randomUUID(),
+        role: 'user' as const,
+        content: text,
+        timestamp: new Date().toISOString(),
+      };
+
+      // Add to timeline BEFORE sending
+      const connection = getConnection(activeInstanceId);
+      if (connection) {
+        const sequence = connection.timeline.length;
+        const userEvent = {
+          id: userMessage.id,
+          sequence,
+          type: 'user' as const,
+          data: userMessage,
+        };
+
+        addToTimeline(activeInstanceId, userEvent);
+      }
+
+      // Then send to server
+      sendToInstance(activeInstanceId, { type: 'prompt', text });
+    } else {
+      sendSinglePrompt(text);
+    }
+  };
+
+  const handleApproval = (requestId: string, decision: 'allow' | 'deny', reason?: string, answers?: Record<string, string>) => {
+    if (shouldUseMultiInstance && activeInstanceId) {
+      sendToInstance(activeInstanceId, { type: 'approval', requestId, decision, reason, answers });
+    } else {
+      handleSingleApproval(requestId, decision, reason, answers);
+    }
+  };
 
   const handleSaveSettings = () => {
     localStorage.setItem('bridge-server-url', customUrl);
@@ -106,7 +182,16 @@ function App() {
           <h1 className="text-lg font-semibold">Claude Code</h1>
         </div>
         <div className="flex items-center gap-3">
-          <ConnectionStatus isConnected={isConnected} error={connectionError} />
+          <ConnectionStatus isConnected={currentIsConnected} error={connectionError} />
+          {shouldUseMultiInstance && (
+            <button
+              onClick={refreshInstances}
+              className="p-2 rounded-lg hover:bg-secondary transition-colors"
+              title="Refresh instances"
+            >
+              <RefreshCw className="h-4 w-4 text-muted-foreground" />
+            </button>
+          )}
           <button
             onClick={() => setShowSettings(true)}
             className="p-2 rounded-lg hover:bg-secondary transition-colors"
@@ -115,6 +200,55 @@ function App() {
           </button>
         </div>
       </header>
+
+      {/* Instance Tabs - Show only when multiple instances exist */}
+      {hasMultipleInstances && (
+        <div className="border-b border-border bg-card">
+          <div className="flex items-center gap-1 px-2 py-2 overflow-x-auto">
+            {instances.map((instance) => {
+              const status = getConnectionStatus(instance.instanceId);
+              const isActive = instance.instanceId === activeInstanceId;
+
+              return (
+                <button
+                  key={instance.instanceId}
+                  onClick={() => setActiveInstance(instance.instanceId)}
+                  className={cn(
+                    'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors',
+                    isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'w-2 h-2 rounded-full',
+                      status.isConnected && status.isAuthenticated
+                        ? 'bg-green-500'
+                        : status.isConnected
+                        ? 'bg-yellow-500'
+                        : 'bg-red-500'
+                    )}
+                  />
+                  <span>{instance.projectName}</span>
+                  <span className="text-xs opacity-70">:{instance.port}</span>
+                </button>
+              );
+            })}
+            <button
+              onClick={() => {
+                setShowSettings(true);
+                setUseMultiInstance(false);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border border-dashed border-border hover:border-primary hover:text-primary transition-colors"
+              title="Add new instance"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="text-xs">New</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Simplified Navigation - Claude Code style */}
       <nav className="border-b border-border bg-card px-4 py-2.5">
@@ -158,7 +292,7 @@ function App() {
         {currentView === 'terminal' && (
           <>
             <UnifiedTerminalView
-              timeline={timeline}
+              timeline={currentTimeline}
               isStreaming={isProcessing}
               tasks={tasks}
               onApprove={(requestId, reason, answers) => {
@@ -171,34 +305,45 @@ function App() {
 
             {/* Input Area */}
             <div className="border-t border-border bg-card p-4">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const formData = new FormData(e.currentTarget);
-                  const text = formData.get('prompt') as string;
-                  if (text.trim()) {
-                    sendPrompt(text);
-                    e.currentTarget.reset();
-                  }
-                }}
-                className="flex gap-2"
-              >
-                <input
-                  name="prompt"
-                  type="text"
-                  placeholder="Enter a prompt..."
-                  disabled={!isConnected || !isAuthenticated || isProcessing}
-                  className="flex-1 px-3 py-2 bg-secondary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 font-mono"
-                  autoComplete="off"
-                />
-                <button
-                  type="submit"
-                  disabled={!isConnected || !isAuthenticated || isProcessing}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+              {hasMultipleInstances && !activeInstanceId && (
+                <div className="text-center text-sm text-muted-foreground py-2">
+                  Select an instance tab above to start
+                </div>
+              )}
+              {(!hasMultipleInstances || activeInstanceId) && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    const text = formData.get('prompt') as string;
+                    if (text.trim()) {
+                      sendPrompt(text);
+                      e.currentTarget.reset();
+                    }
+                  }}
+                  className="flex gap-2"
                 >
-                  {isProcessing ? 'Stop' : 'Send'}
-                </button>
-              </form>
+                  <input
+                    name="prompt"
+                    type="text"
+                    placeholder={
+                      shouldUseMultiInstance && activeInstance
+                        ? `Send to ${activeInstance.projectName}...`
+                        : 'Enter a prompt...'
+                    }
+                    disabled={!currentIsConnected || !currentIsAuthenticated || isProcessing}
+                    className="flex-1 px-3 py-2 bg-secondary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 font-mono"
+                    autoComplete="off"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!currentIsConnected || !currentIsAuthenticated || isProcessing}
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                  >
+                    {isProcessing ? 'Stop' : 'Send'}
+                  </button>
+                </form>
+              )}
             </div>
           </>
         )}
@@ -208,7 +353,7 @@ function App() {
             sessions={sessions}
             activeSessionId={activeSessionId}
             onSelectSession={(id) => {
-              setActiveSessionId(id);
+              setSingleActiveSessionId(id);
               setCurrentView('terminal');
             }}
           />

@@ -35,7 +35,7 @@ export type { ServerMessage, SessionInfo, ProjectInfo, PermissionMode, DiffMessa
 // Sequence counter (outside component to persist across renders)
 let sequenceCounter = 0;
 
-export function useWebSocket(serverUrl: string, authToken: string | null = null) {
+export function useWebSocket(serverUrl: string, authToken: string | null = null, enabled: boolean = true) {
   const [isConnected, setIsConnected] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -65,6 +65,8 @@ export function useWebSocket(serverUrl: string, authToken: string | null = null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const connect = useCallback(() => {
+    // Skip if not enabled
+    if (!enabled) return;
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     try {
@@ -93,10 +95,12 @@ export function useWebSocket(serverUrl: string, authToken: string | null = null)
         setIsConnected(false);
         console.log('WebSocket disconnected');
 
-        // Auto-reconnect after 3 seconds
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect();
-        }, 3000);
+        // Auto-reconnect after 3 seconds (only if enabled)
+        if (enabled) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connect();
+          }, 3000);
+        }
       };
 
       ws.onerror = (error) => {
@@ -115,7 +119,7 @@ export function useWebSocket(serverUrl: string, authToken: string | null = null)
     } catch (error) {
       setConnectionError('Failed to connect to server');
     }
-  }, [serverUrl]);
+  }, [serverUrl, authToken, enabled]);
 
   const handleServerMessage = useCallback((message: ServerMessage) => {
     // Add messages to timeline, except for ones that have specific handlers below
@@ -390,8 +394,10 @@ export function useWebSocket(serverUrl: string, authToken: string | null = null)
     setRawMessages((prev) => [...prev, message]);
   }, [streamingText, activeProjectId]);
 
-  // Connect on mount
+  // Connect on mount (only if enabled)
   useEffect(() => {
+    if (!enabled) return;
+
     connect();
 
     return () => {
@@ -400,7 +406,7 @@ export function useWebSocket(serverUrl: string, authToken: string | null = null)
       }
       wsRef.current?.close();
     };
-  }, [connect]);
+  }, [connect, enabled]);
 
   // Send prompt with optional mode and thinking options
   const sendPrompt = useCallback(

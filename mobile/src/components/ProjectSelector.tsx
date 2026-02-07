@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Folder, FolderOpen, Plus, Trash2, Check, X } from 'lucide-react';
 import type { ProjectInfo } from '../hooks/useWebSocket';
 

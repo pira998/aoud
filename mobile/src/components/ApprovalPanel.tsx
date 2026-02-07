@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Check, X, MessageSquare, FileCode, Terminal, ChevronDown, ChevronUp } from 'lucide-react';
 import * as Diff from 'diff';
 import type { PendingApproval, DiffMessage } from '../hooks/useWebSocket';

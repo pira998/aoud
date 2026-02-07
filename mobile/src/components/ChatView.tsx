@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Send, StopCircle, Bot, User, Info } from 'lucide-react';
 import type { ChatMessage } from '../hooks/useWebSocket';
 
@@ -9,7 +9,6 @@ interface ChatViewProps {
   isConnected: boolean;
   onSendPrompt: (text: string, projectPath?: string) => void;
   onInterrupt: () => void;
-  activeSessionId: string | null;
 }
 
 export function ChatView({
@@ -19,7 +18,6 @@ export function ChatView({
   isConnected,
   onSendPrompt,
   onInterrupt,
-  activeSessionId,
 }: ChatViewProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);

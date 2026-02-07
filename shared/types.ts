@@ -7,6 +7,23 @@
 export type PermissionMode = 'default' | 'plan' | 'acceptEdits';
 
 // ============================================
+// Bridge Instance Types
+// ============================================
+
+export interface BridgeInstance {
+  instanceId: string;
+  projectPath: string;
+  projectName: string;
+  port: number;
+  pid: number;
+  startedAt: string;
+  lastHealthCheck: string;
+  status: 'running' | 'stopped' | 'unhealthy';
+  authToken: string;
+  tunnelUrl?: string;
+}
+
+// ============================================
 // Mobile → Server Messages
 // ============================================
 

@@ -10,6 +10,8 @@ import { createServer } from 'http';
 import { v4 as uuidv4 } from 'uuid';
 import { ClaudeSession } from './claude-session.js';
 import { projectRegistry } from './project-registry.js';
+import { instanceRegistry } from './instance-registry.js';
+import { ProcessMonitor } from './process-monitor.js';
 import type {
   ClientMessage,
   ServerMessage,
@@ -24,6 +26,7 @@ const __dirname = path.dirname(__filename);
 // Configuration
 const PORT = parseInt(process.env.PORT || '3001');
 const SILENT_MODE = process.env.BRIDGE_SILENT === 'true';
+const INSTANCE_ID = process.env.BRIDGE_INSTANCE_ID;
 
 // Auto-generate auth token if not provided (required by default)
 let AUTH_TOKEN = process.env.BRIDGE_AUTH_TOKEN;
@@ -50,10 +53,18 @@ app.use(express.json());
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+  // Update instance health if this is a registered instance
+  if (INSTANCE_ID) {
+    instanceRegistry.updateHealth(INSTANCE_ID);
+  }
+
   res.json({
     status: 'ok',
+    instanceId: INSTANCE_ID,
     sessions: sessions.size,
     clients: clients.size,
+    port: PORT,
+    uptime: process.uptime(),
   });
 });
 
@@ -75,6 +86,30 @@ app.get('/connection-info', (req, res) => {
     addresses,
     port: PORT,
   });
+});
+
+// ============================================
+// Instance Management REST API
+// ============================================
+
+// Get current instance info
+app.get('/instance-info', (req, res) => {
+  if (!INSTANCE_ID) {
+    return res.status(500).json({ error: 'Instance ID not configured' });
+  }
+
+  const instance = instanceRegistry.get(INSTANCE_ID);
+  if (!instance) {
+    return res.status(404).json({ error: 'Instance not found in registry' });
+  }
+
+  res.json(instance);
+});
+
+// List all running instances
+app.get('/instances', (req, res) => {
+  const instances = instanceRegistry.list();
+  res.json({ instances });
 });
 
 // ============================================
@@ -707,8 +742,20 @@ function handleInterrupt(sessionId: string): void {
   }
 }
 
+// Initialize process monitor if this is a registered instance
+let processMonitor: ProcessMonitor | null = null;
+if (INSTANCE_ID) {
+  processMonitor = new ProcessMonitor(INSTANCE_ID);
+}
+
 // Start server
 server.listen(PORT, '0.0.0.0', () => {
+  // Start process monitoring
+  if (INSTANCE_ID && processMonitor) {
+    instanceRegistry.updateHealth(INSTANCE_ID);
+    processMonitor.start();
+  }
+
   if (!SILENT_MODE) {
     const authTokenDisplay = AUTH_TOKEN.length > 40
       ? AUTH_TOKEN.substring(0, 40) + '...'
@@ -720,6 +767,7 @@ server.listen(PORT, '0.0.0.0', () => {
 ╠════════════════════════════════════════════════════════════╣
 ║                                                            ║
 ║  Server running on port ${PORT}                             ║
+${INSTANCE_ID ? `║  Instance ID: ${INSTANCE_ID.substring(0, 8)}...                                     ║` : ''}
 ║                                                            ║
 ║  🔐 Authentication Token (required):                        ║
 ║     ${authTokenDisplay.padEnd(43)}║
@@ -735,6 +783,13 @@ server.listen(PORT, '0.0.0.0', () => {
 `);
   }
 });
+
+// Periodic health check updates (every 30 seconds)
+if (INSTANCE_ID) {
+  setInterval(() => {
+    instanceRegistry.updateHealth(INSTANCE_ID);
+  }, 30000);
+}
 
 // Graceful shutdown
 process.on('SIGINT', () => {

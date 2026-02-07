@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Brain, ChevronDown, ChevronUp, Play, Pause } from 'lucide-react';
 import type { PermissionMode } from '../hooks/useWebSocket';
 

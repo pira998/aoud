@@ -1,4 +1,3 @@
-import React from 'react';
 import { Folder, Activity, Clock, ChevronRight } from 'lucide-react';
 import type { SessionInfo } from '../hooks/useWebSocket';
 

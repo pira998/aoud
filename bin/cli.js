@@ -156,10 +156,6 @@ async function createTunnel(port, provider = 'ngrok', ngrokToken) {
 function displayQRCode(url, wsUrl, authToken, showQR = true) {
   console.log('');
 
-  // Check terminal size
-  const { rows } = terminalSize();
-  const hasSpaceForQR = rows >= 35; // Need at least 35 lines for FIGlet + QR + info
-
   // Header with FIGlet
   const readyText = figlet.textSync('Ready!', {
     font: 'Big',
@@ -194,13 +190,11 @@ function displayQRCode(url, wsUrl, authToken, showQR = true) {
   console.log(table.toString());
   console.log('');
 
-  // QR code (only if terminal is tall enough and showQR is true)
-  if (showQR && hasSpaceForQR) {
+  // QR code (always display if showQR is true)
+  if (showQR) {
     console.log(chalk.bold('📷 Scan QR code with your mobile browser:'));
     console.log('');
     qrcode.generate(url, { small: true });
-  } else if (showQR && !hasSpaceForQR) {
-    console.log(chalk.dim('💡 QR code hidden (terminal too small). Resize or scroll up to see it.'));
   }
 
   console.log('');
@@ -214,7 +208,7 @@ program
 program
   .command('start')
   .description('Start the bridge server')
-  .option('-p, --port <port>', 'Server port', '3001')
+  .option('-p, --port <port>', 'Server port (auto-allocated if not specified)')
   .option('--project <path>', 'Initial project path', process.cwd())
   .option('--auth <token>', 'Authentication token (auto-generated if not provided)')
   .option('--no-auth', 'Disable authentication')
@@ -224,7 +218,59 @@ program
   .option('--ngrok-token <token>', 'ngrok authtoken (required for ngrok)')
   .option('--no-qr', 'Disable QR code display')
   .action(async (options) => {
+    // Import multi-instance modules
+    const { instanceRegistry } = await import('../server/dist/server/src/instance-registry.js');
+    const { findAvailablePort, suggestNextPort } = await import('../server/dist/server/src/port-allocator.js');
+
+    // Cleanup stale instances on startup
+    const staleCount = instanceRegistry.cleanupStaleInstances();
+    if (staleCount > 0) {
+      console.log(chalk.yellow(`⚠️  Cleaned up ${staleCount} stale instance(s)`));
+      console.log('');
+    }
+
     const config = loadConfig();
+
+    // Resolve project path
+    const projectPath = path.resolve(options.project);
+    const projectName = path.basename(projectPath);
+
+    // Check if instance already running for this project
+    const existingInstance = instanceRegistry.getByProject(projectPath);
+    if (existingInstance) {
+      console.log(chalk.yellow(`⚠️  Bridge already running for project: ${chalk.bold(projectName)}`));
+      console.log(chalk.cyan(`   Port: ${existingInstance.port}`));
+      console.log(chalk.cyan(`   PID: ${existingInstance.pid}`));
+      console.log(chalk.cyan(`   Instance ID: ${existingInstance.instanceId.substring(0, 8)}...`));
+      console.log('');
+      console.log(chalk.dim('   Use "claude-bridge list" to see all instances'));
+      console.log(chalk.dim(`   Use "claude-bridge stop --project ${projectPath}" to stop it`));
+      console.log('');
+      process.exit(0);
+    }
+
+    // Allocate port
+    let port;
+    if (options.port) {
+      port = parseInt(options.port);
+      // Verify the specified port is available
+      const { isPortAvailable } = await import('../server/dist/server/src/port-allocator.js');
+      const available = await isPortAvailable(port);
+      if (!available) {
+        console.error(chalk.red(`❌ Port ${port} is not available`));
+        const usedPorts = instanceRegistry.getUsedPorts();
+        const suggested = suggestNextPort(usedPorts);
+        const nextAvailable = await findAvailablePort(suggested);
+        console.log(chalk.yellow(`💡 Suggested available port: ${nextAvailable}`));
+        console.log('');
+        process.exit(1);
+      }
+    } else {
+      // Auto-allocate port
+      const usedPorts = instanceRegistry.getUsedPorts();
+      const suggested = suggestNextPort(usedPorts);
+      port = await findAvailablePort(suggested);
+    }
 
     // Handle auth token
     let authToken;
@@ -234,18 +280,14 @@ program
         // User provided a specific token via --auth TOKEN
         authToken = options.auth;
       } else {
-        // Use saved token or generate a new one
-        authToken = config.authToken;
-        if (!authToken) {
-          authToken = generateAuthToken();
-          config.authToken = authToken;
-          saveConfig(config);
-        }
+        // Generate a unique token for this instance
+        authToken = generateAuthToken();
       }
     }
     // If options.auth === false (--no-auth was passed), authToken stays undefined
 
-    const port = parseInt(options.port);
+    // Generate instance ID
+    const instanceId = crypto.randomBytes(16).toString('hex');
 
     // Startup banner with FIGlet
     console.log('');
@@ -263,8 +305,9 @@ program
     // Set environment variables
     const env = {
       ...process.env,
-      PORT: port,
+      PORT: port.toString(),
       BRIDGE_SILENT: 'true', // Suppress server's own startup messages
+      BRIDGE_INSTANCE_ID: instanceId,
     };
 
     if (authToken) {
@@ -294,7 +337,7 @@ program
     const child = spawn(command, args, {
       env,
       stdio: 'pipe',
-      cwd: options.project,
+      cwd: projectPath,
     });
 
     // Forward stdout/stderr
@@ -307,7 +350,7 @@ program
     });
 
     // Wait for server to be ready with spinner
-    const spinner = ora('Starting server...').start();
+    const spinner = ora(`Starting server on port ${port}...`).start();
     const serverReady = await waitForServer(port);
 
     if (!serverReady) {
@@ -317,12 +360,35 @@ program
     }
 
     spinner.succeed('Server started successfully');
+
+    // Register instance in registry
+    const registeredInstance = instanceRegistry.register({
+      projectPath,
+      projectName,
+      port,
+      pid: child.pid,
+      authToken: authToken || '',
+      tunnelUrl: undefined,
+    });
+
+    console.log('');
+    console.log(chalk.green(`✓ Instance registered: ${registeredInstance.instanceId.substring(0, 8)}...`));
     console.log('');
 
     // Create tunnel if enabled
     let tunnel = null;
     if (options.tunnel) {
       tunnel = await createTunnel(port, options.tunnelProvider, options.ngrokToken);
+
+      // Update instance with tunnel URL
+      if (tunnel) {
+        registeredInstance.tunnelUrl = tunnel.url;
+        // Re-register with tunnel URL
+        instanceRegistry.register({
+          ...registeredInstance,
+          tunnelUrl: tunnel.url,
+        });
+      }
     }
 
     // Get connection URL
@@ -389,9 +455,13 @@ program
     }
 
     // Project and controls
-    console.log(chalk.bold('📂 Project: ') + chalk.cyan(options.project));
+    console.log(chalk.bold('📂 Project: ') + chalk.cyan(projectName));
+    console.log(chalk.bold('🔢 Port: ') + chalk.cyan(port));
+    if (instanceRegistry.list().length > 1) {
+      console.log(chalk.dim('💡 Multiple instances running - use "claude-bridge list" to see all'));
+    }
     console.log('');
-    console.log(chalk.yellow('⌨️  Press ') + chalk.bold('Ctrl+C') + chalk.yellow(' to stop server'));
+    console.log(chalk.yellow('⌨️  Press ') + chalk.bold('Ctrl+C') + chalk.yellow(' to stop this instance'));
     console.log('');
 
     // Handle cleanup on exit
@@ -399,6 +469,9 @@ program
       console.log('');
       console.log('');
       const shutdownSpinner = ora('Shutting down...').start();
+
+      // Unregister instance
+      instanceRegistry.unregister(registeredInstance.instanceId);
 
       if (tunnel) {
         shutdownSpinner.text = 'Closing tunnel...';
@@ -416,6 +489,8 @@ program
     };
 
     child.on('exit', (code) => {
+      // Unregister instance on unexpected exit
+      instanceRegistry.unregister(registeredInstance.instanceId);
       if (tunnel) tunnel.close();
       process.exit(code || 0);
     });
@@ -424,6 +499,177 @@ program
     process.on('SIGINT', cleanup);
     process.on('SIGTERM', cleanup);
   });
+
+// List command - show all running instances
+program
+  .command('list')
+  .description('List all running bridge instances')
+  .action(async () => {
+    const { instanceRegistry } = await import('../server/dist/server/src/instance-registry.js');
+
+    // Cleanup stale instances first
+    const staleCount = instanceRegistry.cleanupStaleInstances();
+    if (staleCount > 0) {
+      console.log(chalk.yellow(`Cleaned up ${staleCount} stale instance(s)`));
+      console.log('');
+    }
+
+    const instances = instanceRegistry.list();
+
+    if (instances.length === 0) {
+      console.log(chalk.yellow('No running instances'));
+      console.log('');
+      console.log(chalk.dim('Start a new instance with: claude-bridge start'));
+      console.log('');
+      return;
+    }
+
+    // Create table
+    const table = new Table({
+      head: ['Project', 'Port', 'PID', 'Status', 'Started', 'Tunnel'],
+      style: {
+        head: ['cyan'],
+      },
+    });
+
+    // Add rows
+    instances.forEach((instance) => {
+      const uptime = Date.now() - new Date(instance.startedAt).getTime();
+      const uptimeStr = formatDuration(uptime);
+
+      const statusIndicator = instance.status === 'running'
+        ? chalk.green('●')
+        : instance.status === 'unhealthy'
+        ? chalk.yellow('●')
+        : chalk.red('●');
+
+      table.push([
+        instance.projectName,
+        instance.port.toString(),
+        instance.pid.toString(),
+        statusIndicator,
+        uptimeStr,
+        instance.tunnelUrl ? chalk.cyan('Yes') : chalk.dim('No'),
+      ]);
+    });
+
+    console.log('');
+    console.log(chalk.bold('Running Bridge Instances'));
+    console.log('');
+    console.log(table.toString());
+    console.log('');
+    console.log(chalk.dim(`Total: ${instances.length} instance(s)`));
+    console.log('');
+  });
+
+// Stop command - stop specific or all instances
+program
+  .command('stop')
+  .description('Stop bridge instance(s)')
+  .option('--project <path>', 'Stop instance for specific project')
+  .option('--port <port>', 'Stop instance on specific port')
+  .option('--all', 'Stop all instances')
+  .action(async (options) => {
+    const { instanceRegistry } = await import('../server/dist/server/src/instance-registry.js');
+
+    let instancesToStop = [];
+
+    if (options.all) {
+      instancesToStop = instanceRegistry.list();
+    } else if (options.project) {
+      const projectPath = path.resolve(options.project);
+      const instance = instanceRegistry.getByProject(projectPath);
+      if (instance) {
+        instancesToStop.push(instance);
+      } else {
+        console.error(chalk.red(`❌ No instance found for project: ${projectPath}`));
+        process.exit(1);
+      }
+    } else if (options.port) {
+      const port = parseInt(options.port);
+      const instance = instanceRegistry.getByPort(port);
+      if (instance) {
+        instancesToStop.push(instance);
+      } else {
+        console.error(chalk.red(`❌ No instance found on port: ${port}`));
+        process.exit(1);
+      }
+    } else {
+      console.error(chalk.red('❌ Please specify --project, --port, or --all'));
+      console.log('');
+      console.log(chalk.dim('Examples:'));
+      console.log(chalk.dim('  claude-bridge stop --project /path/to/project'));
+      console.log(chalk.dim('  claude-bridge stop --port 3002'));
+      console.log(chalk.dim('  claude-bridge stop --all'));
+      console.log('');
+      process.exit(1);
+    }
+
+    if (instancesToStop.length === 0) {
+      console.log(chalk.yellow('No matching instances found'));
+      console.log('');
+      return;
+    }
+
+    console.log('');
+    for (const instance of instancesToStop) {
+      try {
+        // Send SIGTERM to process
+        process.kill(instance.pid, 'SIGTERM');
+
+        // Wait a moment
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Check if process is still alive
+        let isAlive = false;
+        try {
+          process.kill(instance.pid, 0);
+          isAlive = true;
+        } catch (e) {
+          // Process is dead
+        }
+
+        // Force kill if still alive after 2 seconds
+        if (isAlive) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          try {
+            process.kill(instance.pid, 0);
+            // Still alive, force kill
+            process.kill(instance.pid, 'SIGKILL');
+          } catch (e) {
+            // Already dead
+          }
+        }
+
+        // Unregister from registry
+        instanceRegistry.unregister(instance.instanceId);
+
+        console.log(chalk.green(`✓ Stopped: ${instance.projectName} (port ${instance.port})`));
+      } catch (error) {
+        if (error.code === 'ESRCH') {
+          // Process doesn't exist - just unregister
+          instanceRegistry.unregister(instance.instanceId);
+          console.log(chalk.yellow(`⚠ Instance was already stopped: ${instance.projectName}`));
+        } else {
+          console.error(chalk.red(`✗ Failed to stop ${instance.projectName}: ${error.message}`));
+        }
+      }
+    }
+    console.log('');
+  });
+
+// Helper function to format duration
+function formatDuration(ms) {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days}d ${hours % 24}h`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return `${seconds}s`;
+}
 
 program
   .command('config')
