@@ -73,7 +73,7 @@ function App() {
 
   // Determine if this is a direct QR code connection vs multi-instance discovery
   // QR connections have both serverUrl and authToken, and typically aren't localhost
-  const isDirectQRConnection = serverUrl && authToken && !serverUrl.includes('localhost');
+  const isDirectQRConnection = Boolean(serverUrl && authToken && !serverUrl.includes('localhost'));
 
   // Enable only the appropriate hook to prevent dual connections (4x message bug)
   const multiInstance = useMultiInstanceWebSocket(!isDirectQRConnection);
@@ -90,7 +90,7 @@ function App() {
   } = multiInstance;
 
   // Fallback to single-instance mode (enabled only for direct QR connections)
-  const singleInstance = useWebSocket(serverUrl, authToken, isDirectQRConnection);
+  const singleInstance = useWebSocket(serverUrl, authToken || null, isDirectQRConnection);
   const {
     isConnected,
     isAuthenticated,
