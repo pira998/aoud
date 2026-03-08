@@ -1,0 +1,242 @@
+/* ==========================================================
+   Multi-Pane View — Pure CSS Grid Layout
+   ==========================================================
+   Uses native CSS Grid instead of react-grid-layout.
+   This avoids absolute-positioning + rowHeight issues that
+   caused panes to overflow beyond their container.
+   ========================================================== */
+
+/* Root: fills the <main> flex area, stacks:
+     [toolbar]  flex-shrink:0
+     [grid]     flex:1  (takes ALL remaining space)
+     [bottombar] flex-shrink:0                          */
+.multi-pane-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ---- CSS Grid container ---- */
+/* flex:1 + min-height:0 ensures it takes exactly the
+   remaining space between toolbar and bottom bar.
+   overflow:hidden prevents any child from exceeding it. */
+.pane-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  overflow: hidden;
+}
+
+/* Grid cell — each cell fills its grid area */
+.pane-grid-cell {
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.pane-grid-cell--dragging {
+  opacity: 0.5;
+}
+
+/* ---- Layout variants ---- */
+
+/* 1 pane: full width, full height */
+.pane-grid--1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+/* 2 panes: side by side, one row */
+.pane-grid--2 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+/* 3 panes: three columns, one row */
+.pane-grid--3 {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+/* 4 panes: 2×2 grid */
+.pane-grid--4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+/* 5 panes: 3 top + 2 bottom (centered) */
+.pane-grid--5 {
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: 1fr 1fr;
+}
+.pane-grid--5 > .pane-grid-cell:nth-child(1) { grid-column: 1 / 3; }
+.pane-grid--5 > .pane-grid-cell:nth-child(2) { grid-column: 3 / 5; }
+.pane-grid--5 > .pane-grid-cell:nth-child(3) { grid-column: 5 / 7; }
+.pane-grid--5 > .pane-grid-cell:nth-child(4) { grid-column: 1 / 4; }
+.pane-grid--5 > .pane-grid-cell:nth-child(5) { grid-column: 4 / 7; }
+
+/* 6 panes: 3×2 grid */
+.pane-grid--6 {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+
+/* ==========================================================
+   Pane container (SessionPane wrapper)
+   ========================================================== */
+.session-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(39, 39, 58, 0.5);
+  background: rgba(17, 17, 24, 0.8);
+  backdrop-filter: blur(12px);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.session-pane--focused {
+  border-color: rgba(139, 92, 246, 0.6);
+  box-shadow:
+    0 0 0 2px rgba(139, 92, 246, 0.2),
+    0 8px 24px rgba(139, 92, 246, 0.08);
+}
+
+.session-pane--has-approval {
+  border-color: rgba(234, 179, 8, 0.5);
+  animation: approval-pulse 2s ease-in-out infinite;
+}
+
+@keyframes approval-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.1); }
+  50%      { box-shadow: 0 0 0 4px rgba(234, 179, 8, 0.2); }
+}
+
+
+/* ==========================================================
+   Pane header (drag handle / session selector)
+   ========================================================== */
+.pane-drag-handle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid rgba(39, 39, 58, 0.5);
+  background: rgba(17, 17, 24, 0.6);
+  cursor: grab;
+  user-select: none;
+  min-height: 32px;
+  flex-shrink: 0;
+}
+
+.pane-drag-handle:active {
+  cursor: grabbing;
+}
+
+
+/* ==========================================================
+   Pane content (message list area)
+   ========================================================== */
+
+/* Takes remaining flex space; overflow hidden so the
+   inner .message-list can scroll independently. */
+.pane-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  min-height: 0;
+}
+
+/* Override the global .message-list styles (flex:1 for Terminal)
+   so it fills this container and scrolls within. */
+.pane-content > .message-list {
+  height: 100%;
+  flex: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Empty state */
+.pane-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: rgba(113, 113, 122, 0.6);
+  font-size: 0.75rem;
+}
+
+
+/* ==========================================================
+   Layout preset toolbar
+   ========================================================== */
+.pane-presets-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(39, 39, 58, 0.5);
+  background: rgba(17, 17, 24, 0.6);
+  backdrop-filter: blur(12px);
+  flex-shrink: 0;
+}
+
+.pane-preset-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(161, 161, 170, 1);
+  background: rgba(30, 30, 46, 0.5);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 150ms ease;
+  white-space: nowrap;
+}
+
+.pane-preset-btn:hover {
+  background: rgba(30, 30, 46, 0.8);
+  color: rgba(250, 250, 250, 1);
+}
+
+.pane-preset-btn--active {
+  background: rgba(139, 92, 246, 0.15);
+  color: rgba(139, 92, 246, 1);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+
+/* ==========================================================
+   Bottom bar (StatusBar + TokenUsageBar + input)
+   ========================================================== */
+.pane-bottom-bar {
+  flex-shrink: 0;
+}
+
+.pane-input-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 1rem;
+  font-size: 0.675rem;
+  color: rgba(113, 113, 122, 1);
+  background: rgba(17, 17, 24, 0.4);
+  border-top: 1px solid rgba(39, 39, 58, 0.3);
+}
+
+.pane-input-indicator__label {
+  color: rgba(139, 92, 246, 1);
+  font-weight: 600;
+}

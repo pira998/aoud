@@ -1,0 +1,128 @@
+.chat-history {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 896px;
+  margin: 0 auto;
+  background-color: var(--terminal-bg);
+}
+
+.chat-history__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.chat-history__header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.chat-history__count {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.chat-history__empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  padding: 32px;
+  text-align: center;
+}
+
+.chat-history__empty-hint {
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.chat-history__list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.chat-history-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background-color 0.2s;
+  position: relative;
+}
+
+.chat-history-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.chat-history-item__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+
+.chat-history-item__title {
+  font-size: 14px;
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 8px;
+}
+
+.chat-history-item__time {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.chat-history-item__stats {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', 'Monaco', monospace;
+}
+
+.chat-history-item__status {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.chat-history-item:hover .chat-history-item__status {
+  opacity: 1;
+}
+
+.chat-history-item__status--active {
+  background-color: rgba(0, 255, 0, 0.2);
+  color: #0f0;
+}
+
+.chat-history-item__status--completed {
+  background-color: rgba(0, 123, 255, 0.2);
+  color: #0af;
+}
+
+.chat-history-item__status--interrupted {
+  background-color: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.chat-history-item__status--error {
+  background-color: rgba(255, 0, 0, 0.2);
+  color: #f00;
+}

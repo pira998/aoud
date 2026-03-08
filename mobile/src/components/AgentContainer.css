@@ -1,0 +1,206 @@
+/* ── Agent Container ─────────────────────────────────────── */
+
+.ac {
+  margin: 6px 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.ac--active {
+  border-color: rgba(139, 92, 246, 0.25);
+}
+
+.ac--done {
+  opacity: 0.85;
+}
+
+.ac--open {
+  border-color: rgba(139, 92, 246, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ac--approval {
+  border-color: rgba(234, 179, 8, 0.35);
+  box-shadow: 0 0 12px rgba(234, 179, 8, 0.06);
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+
+.ac__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  gap: 8px;
+  min-height: 36px;
+  transition: background 0.15s ease;
+}
+
+.ac__header:active {
+  background: rgba(139, 92, 246, 0.06);
+}
+
+.ac__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ac__icon {
+  font-size: 14px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: rgba(139, 92, 246, 0.1);
+  flex-shrink: 0;
+}
+
+.ac__type {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary, #8b5cf6);
+  flex-shrink: 0;
+}
+
+.ac__desc {
+  font-size: 11px;
+  color: var(--text-secondary, #a0a0b0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.ac__right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Latest running tool label */
+.ac__current {
+  font-size: 10px;
+  color: #60a5fa;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tool count badge */
+.ac__count {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary, #a0a0b0);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Mini inline progress bar */
+.ac__progress {
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.ac__progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: #4ade80;
+  transition: width 0.4s ease;
+}
+
+.ac__progress-fill--active {
+  background: #60a5fa;
+}
+
+/* Error count */
+.ac__err {
+  font-size: 10px;
+  font-weight: 600;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* Live pulse dot */
+.ac__pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #60a5fa;
+  animation: ac-pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes ac-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+/* Chevron */
+.ac__chevron {
+  font-size: 10px;
+  color: var(--text-tertiary, #6b6b7b);
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+}
+
+.ac__chevron--open {
+  transform: rotate(90deg);
+}
+
+/* ── Expandable body ────────────────────────────────────── */
+
+.ac__body {
+  overflow: hidden;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease;
+  will-change: max-height;
+}
+
+.ac__inner {
+  padding: 0 10px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Tool row inside agent */
+.ac__tool {
+  border-left: 2px solid rgba(139, 92, 246, 0.15);
+  padding-left: 10px;
+}
+
+.ac__tool--approval {
+  border-left-color: rgba(234, 179, 8, 0.35);
+}
+
+.ac__empty {
+  padding: 8px 0;
+  text-align: center;
+  color: var(--text-tertiary, #6b6b7b);
+  font-size: 11px;
+  font-style: italic;
+  opacity: 0.6;
+}

@@ -1,0 +1,179 @@
+/* Session Tabs - Multi-session tab bar */
+.session-tabs {
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  background: hsl(var(--card) / 0.8);
+  backdrop-filter: blur(12px);
+}
+
+.session-tabs__scroll {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.session-tabs__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Tab wrapper for positioning close button */
+.session-tabs__tab-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.session-tabs__tab-wrapper:hover .session-tabs__close {
+  opacity: 1;
+}
+
+/* Individual tab */
+.session-tabs__tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  padding-right: 1.75rem; /* Space for close button */
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  background: hsl(var(--secondary) / 0.3);
+  color: hsl(var(--muted-foreground));
+  -webkit-tap-highlight-color: transparent;
+  max-width: 160px;
+}
+
+.session-tabs__tab:hover {
+  background: hsl(var(--secondary) / 0.5);
+  color: hsl(var(--foreground));
+}
+
+.session-tabs__tab--active {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+  box-shadow: 0 2px 8px hsl(var(--primary) / 0.25);
+}
+
+.session-tabs__tab--active:hover {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.session-tabs__tab--unread {
+  border-color: hsl(var(--primary) / 0.3);
+}
+
+/* Status dot */
+.session-tabs__dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: hsl(var(--muted-foreground) / 0.4);
+}
+
+.session-tabs__tab--active .session-tabs__dot {
+  background: hsl(var(--primary-foreground) / 0.6);
+}
+
+.session-tabs__dot--running {
+  background: hsl(142 76% 55%);
+  box-shadow: 0 0 6px hsl(142 76% 55% / 0.5);
+  animation: session-dot-pulse 1.5s ease-in-out infinite;
+}
+
+.session-tabs__dot--waiting {
+  background: hsl(45 90% 55%);
+  box-shadow: 0 0 6px hsl(45 90% 55% / 0.5);
+}
+
+@keyframes session-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Tab label */
+.session-tabs__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+/* Unread notification dot */
+.session-tabs__unread-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: hsl(217 91% 60%);
+  border: 1.5px solid hsl(var(--card));
+  box-shadow: 0 0 4px hsl(217 91% 60% / 0.5);
+}
+
+/* Close button */
+.session-tabs__close {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.125rem;
+  border-radius: 0.25rem;
+  background: hsl(var(--secondary) / 0.6);
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.15s ease;
+  border: none;
+  -webkit-tap-highlight-color: transparent;
+  z-index: 10;
+}
+
+.session-tabs__close:hover {
+  background: hsl(var(--destructive) / 0.9);
+  color: hsl(var(--destructive-foreground));
+}
+
+.session-tabs__tab--active .session-tabs__close {
+  background: hsl(var(--primary-foreground) / 0.2);
+  color: hsl(var(--primary-foreground));
+}
+
+.session-tabs__tab--active .session-tabs__close:hover {
+  background: hsl(var(--destructive) / 0.9);
+  color: hsl(var(--destructive-foreground));
+}
+
+/* New session button */
+.session-tabs__new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem;
+  border-radius: 0.5rem;
+  border: 1px dashed hsl(var(--border) / 0.5);
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.session-tabs__new:hover {
+  border-color: hsl(var(--primary) / 0.5);
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.05);
+}
