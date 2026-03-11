@@ -1,0 +1,120 @@
+{
+  "$schema": "./model-overrides.schema.json",
+  "version": "1.0.0",
+  "description": "Model configuration overrides for Aoud",
+
+  "betaHeaders": {
+    "1m-context": {
+      "header": "context-1m-2025-08-07",
+      "description": "Extended 1M token context window",
+      "supportedModels": [
+        "claude-sonnet-4-5-20250929",
+        "claude-sonnet-4-6",
+        "claude-opus-4-6"
+      ]
+    }
+  },
+
+  "modelOverrides": {
+    "claude-sonnet-4-5-20250929": {
+      "displayName": "Sonnet 4.5",
+      "alias": "sonnet",
+      "description": "Fast daily coding",
+      "contextWindow": 200000,
+      "pricing": {
+        "input": 0.000003,
+        "output": 0.000015,
+        "cacheWrite": 0.00000375,
+        "cacheRead": 0.0000003
+      },
+      "enabled": true,
+      "extended": {
+        "1m-context": {
+          "displayName": "Sonnet 4.5 (1M)",
+          "alias": "sonnet-1m",
+          "description": "Fast coding with 1M context",
+          "contextWindow": 1000000,
+          "pricing": {
+            "input": 0.000003,
+            "output": 0.000015,
+            "cacheWrite": 0.00000375,
+            "cacheRead": 0.0000003,
+            "inputOver200k": 0.000006,
+            "outputOver200k": 0.0000225
+          }
+        }
+      }
+    },
+    "claude-sonnet-4-6": {
+      "displayName": "Sonnet 4.6",
+      "alias": "sonnet46",
+      "description": "Best speed and intelligence",
+      "contextWindow": 200000,
+      "pricing": {
+        "input": 0.000003,
+        "output": 0.000015,
+        "cacheWrite": 0.00000375,
+        "cacheRead": 0.0000003
+      },
+      "enabled": true,
+      "extended": {
+        "1m-context": {
+          "displayName": "Sonnet 4.6 (1M)",
+          "alias": "sonnet46-1m",
+          "description": "Best speed and intelligence with 1M context",
+          "contextWindow": 1000000,
+          "pricing": {
+            "input": 0.000003,
+            "output": 0.000015,
+            "cacheWrite": 0.00000375,
+            "cacheRead": 0.0000003,
+            "inputOver200k": 0.000006,
+            "outputOver200k": 0.0000225
+          }
+        }
+      }
+    },
+    "claude-opus-4-6": {
+      "displayName": "Opus 4.6",
+      "alias": "opus",
+      "description": "Complex reasoning",
+      "contextWindow": 200000,
+      "pricing": {
+        "input": 0.000005,
+        "output": 0.000025,
+        "cacheWrite": 0.00000625,
+        "cacheRead": 0.0000005
+      },
+      "enabled": true,
+      "extended": {
+        "1m-context": {
+          "displayName": "Opus 4.6 (1M)",
+          "alias": "opus-1m",
+          "description": "Complex reasoning with 1M context",
+          "contextWindow": 1000000,
+          "pricing": {
+            "input": 0.000005,
+            "output": 0.000025,
+            "cacheWrite": 0.00000625,
+            "cacheRead": 0.0000005,
+            "inputOver200k": 0.000010,
+            "outputOver200k": 0.0000375
+          }
+        }
+      }
+    },
+    "claude-haiku-4-5-20251001": {
+      "displayName": "Haiku 4.5",
+      "alias": "haiku",
+      "description": "Quick & efficient",
+      "contextWindow": 200000,
+      "pricing": {
+        "input": 0.000001,
+        "output": 0.000005,
+        "cacheWrite": 0.00000125,
+        "cacheRead": 0.0000001
+      },
+      "enabled": true
+    }
+  }
+}

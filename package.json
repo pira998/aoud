@@ -1,0 +1,79 @@
+{
+  "name": "@piraveen98/aoud-code",
+  "version": "1.0.0",
+  "description": "Control Claude Code from your mobile phone - Aoud server with PWA mobile client",
+  "type": "module",
+  "main": "server/dist/server/src/index.js",
+  "bin": {
+    "aoud": "./bin/cli.js"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace=server",
+    "dev:mobile": "npm run dev --workspace=mobile",
+    "dev:all": "concurrently --names server,mobile --prefix-colors blue,green \"npm run dev --workspace=server\" \"npm run dev --workspace=mobile\"",
+    "build": "npm run build --workspace=server && npm run build --workspace=mobile",
+    "build:server": "npm run build --workspace=server",
+    "build:mobile": "npm run build --workspace=mobile",
+    "start": "node server/dist/index.js",
+    "postinstall": "npm run build || true"
+  },
+  "workspaces": [
+    "server",
+    "mobile"
+  ],
+  "files": [
+    "bin",
+    "server/dist",
+    "server/src",
+    "mobile/dist",
+    "shared"
+  ],
+  "keywords": [
+    "claude",
+    "anthropic",
+    "mobile",
+    "bridge",
+    "cli",
+    "claude-code",
+    "ai",
+    "assistant"
+  ],
+  "author": "pira998",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pira998/aoud.git"
+  },
+  "homepage": "https://github.com/pira998/aoud#readme",
+  "bugs": {
+    "url": "https://github.com/pira998/aoud/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "latest",
+    "@ngrok/ngrok": "^1.4.0",
+    "boxen": "^8.0.1",
+    "chalk": "^5.6.2",
+    "cli-table3": "^0.6.5",
+    "cloudflared": "^0.7.1",
+    "commander": "^12.1.0",
+    "cors": "^2.8.5",
+    "diff": "8.0.3",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.0",
+    "figlet": "^1.10.0",
+    "gradient-string": "^3.0.0",
+    "localtunnel": "^1.8.3",
+    "nanoid": "^5.1.6",
+    "ora": "^9.3.0",
+    "qrcode": "^1.5.3",
+    "qrcode-terminal": "^0.12.0",
+    "terminal-size": "^4.0.1",
+    "uuid": "^10.0.0",
+    "vite": "7.3.1",
+    "ws": "^8.18.0",
+    "yaml": "^2.8.2"
+  }
+}

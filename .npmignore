@@ -1,0 +1,58 @@
+# Source files (we only publish built dist/)
+server/src/
+mobile/src/
+
+# Development files
+.env
+.env.*
+*.tsbuildinfo
+tsconfig*.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Tests
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+__tests__/
+coverage/
+
+# Documentation (keep README.md, LICENSE)
+docs/
+.tickets/
+CONTRIBUTING.md
+
+# Development references
+reference/
+new-ui/
+*.tgz
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Claude Code internals
+.claude/
+.agents/
+.notebook/
+CLAUDE.md
+
+# Runtime/config directories
+.aoud/
+certs/
+logs/
