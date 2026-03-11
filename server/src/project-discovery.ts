@@ -18,14 +18,25 @@ const ACTIVE_PROJECT_FILE = path.join(os.homedir(), '.aoud', 'active-project.txt
  * variations of the candidate segment to find a match on disk.
  */
 export function decodeProjectPath(encoded: string): string {
-  if (!encoded.startsWith('-')) return encoded;
+  // Windows paths: "C--Users-foo-bar" (drive letter + -- for :\)
+  // Unix paths:    "-Users-foo-bar"   (leading - for /)
+  const windowsDriveMatch = encoded.match(/^([A-Za-z])--(.*)/);
 
-  // Remove leading dash and split by dash
-  const parts = encoded.slice(1).split('-');
-
-  // Greedy reconstruction: try to build a valid path
-  let currentPath = '/';
+  let parts: string[];
+  let currentPath: string;
   let i = 0;
+
+  if (windowsDriveMatch) {
+    // Windows: start from drive root, e.g. C:\
+    currentPath = `${windowsDriveMatch[1].toUpperCase()}:\\`;
+    parts = windowsDriveMatch[2].split('-');
+  } else if (encoded.startsWith('-')) {
+    // Unix: start from /
+    currentPath = '/';
+    parts = encoded.slice(1).split('-');
+  } else {
+    return encoded;
+  }
 
   while (i < parts.length) {
     let found = false;
