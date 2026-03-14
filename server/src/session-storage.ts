@@ -159,10 +159,14 @@ const ACTIVE_SESSIONS_FILE = path.join(SESSIONS_DIR, 'active-sessions.json');
 
 /**
  * Normalize project path to match Claude Code's directory naming convention
- * Converts both '/' and '_' to '-'
+ * Converts '/', '\', and '_' to '-'
+ * On Windows, 'C:\' becomes 'C-' to match Claude Code's encoding
  */
 export function normalizeProjectPath(projectPath: string): string {
-  return projectPath.replace(/[/_]/g, '-');
+  // Handle Windows drive prefix: C:\ → C-
+  let normalized = projectPath.replace(/^([A-Za-z]):[\\\/]/, '$1-');
+  // Replace remaining /, \, and _ with -
+  return normalized.replace(/[/\\_]/g, '-');
 }
 
 export class SessionStorage {
